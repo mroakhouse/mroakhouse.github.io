@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Track — AI Songwriting</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg0:#0a0a0c; --bg1:#111116; --bg2:#18181f; --bg3:#22222c;
+  --border:rgba(255,255,255,0.07); --border-bright:rgba(255,255,255,0.14);
+  --text:#e8e8f0; --text-dim:rgba(232,232,240,0.4); --text-mid:rgba(232,232,240,0.65);
+  --accent:#e8ff47; --accent2:#ff6b6b; --accent3:#47c8ff; --accent4:#b47fff;
+  --accent-dim:rgba(232,255,71,0.12);
+  --font-display:'Syne',sans-serif; --font-mono:'Space Mono',monospace;
+}
+html,body { height:100%; width:100%; overflow:hidden; background:var(--bg0); -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; }
+#app { height:100dvh; display:flex; flex-direction:column; background:var(--bg0); position:relative; overflow:hidden; font-family:var(--font-mono); }
+#app::after { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px); pointer-events:none; z-index:999; opacity:0.6; }
+
+/* HEADER */
+.header { position:relative; z-index:20; background:var(--bg1); border-bottom:1px solid var(--border); padding:48px 16px 12px; display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+.logo-wrap { display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+.logo { font-family:var(--font-display); font-weight:800; font-size:22px; letter-spacing:-0.02em; color:var(--accent); line-height:1; }
+.logo-sub { font-size:8px; letter-spacing:0.28em; text-transform:uppercase; color:var(--text-dim); margin-left:1px; }
+.header-actions { display:flex; gap:7px; align-items:center; flex-shrink:0; }
+.hbtn { height:32px; padding:0 11px; border-radius:6px; border:1px solid var(--border-bright); background:var(--bg2); color:var(--text-mid); font-family:var(--font-mono); font-size:9px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.15s; white-space:nowrap; }
+.hbtn:active { background:var(--bg3); color:var(--text); transform:scale(0.96); }
+.hbtn.accent { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+.hbtn svg { flex-shrink:0; }
+
+/* LANG SELECTOR */
+.lang-select { height:32px; padding:0 8px; border-radius:6px; border:1px solid var(--border-bright); background:var(--bg2); color:var(--text-mid); font-family:var(--font-mono); font-size:11px; cursor:pointer; outline:none; -webkit-appearance:none; appearance:none; }
+.lang-select:focus { border-color:var(--accent); color:var(--accent); }
+
+/* TITLE BAR */
+.title-bar { background:var(--bg1); border-bottom:1px solid var(--border); padding:0 16px; display:flex; align-items:center; gap:10px; height:44px; position:relative; z-index:10; }
+.song-title-input { flex:1; background:transparent; border:none; outline:none; font-family:var(--font-display); font-weight:600; font-size:15px; color:var(--text); -webkit-appearance:none; letter-spacing:0.01em; }
+.song-title-input::placeholder { color:var(--text-dim); font-weight:400; }
+.meta-chip { font-size:8px; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-dim); padding:3px 8px; border-radius:4px; border:1px solid var(--border); white-space:nowrap; flex-shrink:0; }
+.meta-chip.gold { color:var(--accent); border-color:rgba(232,255,71,0.25); }
+
+/* SECTION TABS */
+.section-tabs { display:flex; overflow-x:auto; border-bottom:1px solid var(--border); background:var(--bg1); position:relative; z-index:10; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.section-tabs::-webkit-scrollbar { display:none; }
+.tab-btn { flex-shrink:0; height:36px; padding:0 13px; border:none; border-right:1px solid var(--border); background:transparent; font-family:var(--font-mono); font-size:8px; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-dim); cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:6px; position:relative; }
+.tab-btn.active { color:var(--text); background:var(--bg2); }
+.tab-btn.active::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--section-color,var(--accent)); border-radius:1px 1px 0 0; }
+.tab-btn .tab-dot { width:6px; height:6px; border-radius:50%; background:var(--section-color,var(--accent)); opacity:0.7; flex-shrink:0; }
+.add-section-btn { flex-shrink:0; height:36px; width:36px; border:none; background:transparent; color:var(--text-dim); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; transition:color 0.15s; }
+.add-section-btn:active { color:var(--accent); }
+
+/* EDITOR */
+.editor-area { flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; position:relative; background:var(--bg0); }
+.section-header { display:flex; align-items:center; gap:10px; padding:14px 16px 8px; border-bottom:1px solid var(--border); background:var(--bg1); position:sticky; top:0; z-index:5; }
+.section-label { font-family:var(--font-display); font-weight:700; font-size:11px; letter-spacing:0.22em; text-transform:uppercase; color:var(--section-color,var(--accent)); }
+.section-line-count { font-size:8px; letter-spacing:0.14em; color:var(--text-dim); text-transform:uppercase; }
+.lyric-editor { width:100%; min-height:220px; background:transparent; border:none; outline:none; resize:none; font-family:var(--font-mono); font-size:15px; line-height:28px; color:var(--text); caret-color:var(--accent); padding:16px 18px; -webkit-appearance:none; overflow:hidden; letter-spacing:0.01em; }
+.lyric-editor::placeholder { color:var(--text-dim); font-style:italic; font-size:14px; }
+
+/* AI CARD */
+.ai-card { margin:12px 14px; background:var(--bg2); border:1px solid var(--border-bright); border-radius:10px; overflow:hidden; animation:slideUp 0.3s cubic-bezier(0.16,1,0.3,1); }
+.ai-card-header { padding:10px 14px; background:var(--bg3); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.ai-card-label { font-size:8px; letter-spacing:0.24em; text-transform:uppercase; color:var(--accent); display:flex; align-items:center; gap:6px; }
+.ai-card-label::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--accent); display:inline-block; animation:pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.ai-card-body { padding:14px; font-family:var(--font-mono); font-size:14px; line-height:1.75; color:var(--text); white-space:pre-wrap; letter-spacing:0.01em; }
+.ai-card-body.thinking { color:var(--text-dim); font-style:italic; }
+.ai-card-body.thinking::after { content:'▋'; color:var(--accent); animation:blink 0.7s step-end infinite; }
+.ai-card-actions { padding:10px 14px; border-top:1px solid var(--border); display:flex; gap:8px; flex-wrap:wrap; }
+.ai-act-btn { font-family:var(--font-mono); font-size:8px; letter-spacing:0.14em; text-transform:uppercase; padding:5px 11px; border-radius:5px; border:1px solid var(--border-bright); background:transparent; color:var(--text-mid); cursor:pointer; transition:all 0.15s; }
+.ai-act-btn:active { background:var(--bg3); color:var(--text); }
+.ai-act-btn.primary { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+.ai-act-btn.primary:active { background:rgba(232,255,71,0.2); }
+
+/* RHYME PANEL */
+.rhyme-panel { margin:0 14px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:10px; overflow:hidden; animation:slideUp 0.3s cubic-bezier(0.16,1,0.3,1); }
+.rhyme-header { padding:9px 14px; background:var(--bg3); border-bottom:1px solid var(--border); font-size:8px; letter-spacing:0.2em; text-transform:uppercase; color:var(--accent3); display:flex; justify-content:space-between; align-items:center; }
+.rhyme-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); }
+.rhyme-word { background:var(--bg2); padding:10px; font-family:var(--font-mono); font-size:13px; color:var(--text); cursor:pointer; transition:background 0.12s; text-align:center; }
+.rhyme-word:active { background:var(--bg3); color:var(--accent); }
+
+/* TOOLBAR */
+.toolbar { background:var(--bg1); border-top:1px solid var(--border); padding:10px 12px; padding-bottom:max(10px,env(safe-area-inset-bottom)); position:relative; z-index:20; }
+.prompt-row { display:flex; align-items:center; gap:8px; background:var(--bg2); border:1px solid var(--border-bright); border-radius:10px; padding:8px 10px 8px 14px; margin-bottom:10px; }
+.prompt-input { flex:1; background:transparent; border:none; outline:none; font-family:var(--font-mono); font-size:13px; color:var(--text); -webkit-appearance:none; letter-spacing:0.01em; }
+.prompt-input::placeholder { color:var(--text-dim); }
+.send-btn { width:32px; height:32px; background:var(--accent); border:none; border-radius:7px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:transform 0.15s,opacity 0.15s; }
+.send-btn:active { transform:scale(0.91); }
+.send-btn:disabled { opacity:0.3; }
+.send-btn svg { color:var(--bg0); }
+.quick-row { display:flex; gap:7px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.quick-row::-webkit-scrollbar { display:none; }
+.quick-btn { white-space:nowrap; font-family:var(--font-mono); font-size:8px; letter-spacing:0.13em; text-transform:uppercase; padding:6px 12px; border-radius:5px; border:1px solid var(--border-bright); background:var(--bg2); color:var(--text-mid); cursor:pointer; flex-shrink:0; transition:all 0.15s; }
+.quick-btn:active { background:var(--bg3); color:var(--text); }
+.quick-btn.rhyme-btn { border-color:rgba(71,200,255,0.3); color:var(--accent3); background:rgba(71,200,255,0.06); }
+
+/* DRAWER */
+.drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:50; backdrop-filter:blur(2px); }
+.drawer { position:fixed; bottom:0; left:0; right:0; background:var(--bg1); border-radius:16px 16px 0 0; border-top:1px solid var(--border-bright); z-index:51; max-height:82dvh; display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom); }
+.drawer-pill { width:36px; height:3px; background:var(--border-bright); border-radius:2px; margin:10px auto 0; flex-shrink:0; }
+.drawer-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.drawer-head-title { font-family:var(--font-display); font-weight:700; font-size:16px; color:var(--text); letter-spacing:0.01em; }
+.drawer-x { width:28px; height:28px; border:1px solid var(--border); background:var(--bg2); border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-dim); }
+.drawer-x:active { color:var(--text); }
+.drawer-body { overflow-y:auto; flex:1; padding:14px 16px 16px; -webkit-overflow-scrolling:touch; }
+
+/* SONG LIST */
+.song-list { display:flex; flex-direction:column; gap:8px; }
+.song-item { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:13px 15px; cursor:pointer; transition:all 0.15s; position:relative; }
+.song-item.current { border-color:var(--accent); }
+.song-item:active { transform:scale(0.98); background:var(--bg3); }
+.song-item-title { font-family:var(--font-display); font-weight:600; font-size:15px; color:var(--text); margin-bottom:5px; padding-right:28px; }
+.song-item-meta { font-size:8px; letter-spacing:0.13em; text-transform:uppercase; color:var(--text-dim); display:flex; gap:10px; flex-wrap:wrap; }
+.song-item-del { position:absolute; top:12px; right:12px; width:24px; height:24px; border:none; background:rgba(255,107,107,0.1); border-radius:5px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--accent2); opacity:0.5; }
+.song-item-del:active { opacity:1; }
+.new-song-btn { width:100%; padding:13px; border:1px dashed var(--border-bright); border-radius:10px; background:transparent; font-family:var(--font-mono); font-size:8px; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-dim); cursor:pointer; transition:all 0.15s; margin-top:4px; }
+.new-song-btn:active { border-color:var(--accent); color:var(--accent); }
+
+/* SECTION PICKER */
+.section-picker { display:flex; flex-direction:column; gap:8px; }
+.section-pick-btn { display:flex; align-items:center; gap:14px; padding:13px 15px; border:1px solid var(--border); border-radius:10px; background:var(--bg2); cursor:pointer; transition:all 0.15s; width:100%; }
+.section-pick-btn:active { background:var(--bg3); }
+.spb-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.spb-name { font-family:var(--font-display); font-weight:600; font-size:15px; color:var(--text); }
+.spb-hint { font-size:8px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); margin-top:1px; }
+
+/* EXPORT */
+.export-list { display:flex; flex-direction:column; gap:10px; }
+.export-item { width:100%; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--bg2); display:flex; align-items:center; gap:14px; cursor:pointer; transition:all 0.15s; text-align:left; }
+.export-item:active { background:var(--bg3); border-color:var(--border-bright); }
+.export-icon { width:38px; height:38px; border-radius:8px; background:var(--bg3); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--accent); flex-shrink:0; }
+.export-title { font-family:var(--font-display); font-weight:600; font-size:14px; color:var(--text); }
+.export-desc { font-size:8px; letter-spacing:0.13em; text-transform:uppercase; color:var(--text-dim); margin-top:2px; }
+.export-ok { background:rgba(71,200,255,0.08); border:1px solid rgba(71,200,255,0.2); color:var(--accent3); font-family:var(--font-mono); font-size:11px; letter-spacing:0.1em; padding:13px; border-radius:10px; text-align:center; animation:slideUp 0.3s ease; }
+
+/* SELECTION POPOVER */
+.selection-popover { position:fixed; z-index:200; background:var(--accent); color:var(--bg0); font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; padding:7px 13px; border-radius:8px; border:none; cursor:pointer; white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 0 1px rgba(232,255,71,0.3); transform:translateX(-50%); animation:popIn 0.15s cubic-bezier(0.16,1,0.3,1); pointer-events:all; }
+.selection-popover::after { content:''; position:absolute; bottom:-5px; left:50%; transform:translateX(-50%); width:10px; height:5px; background:var(--accent); clip-path:polygon(0 0,100% 0,50% 100%); }
+@keyframes popIn { from{opacity:0;transform:translateX(-50%) scale(0.88)} to{opacity:1;transform:translateX(-50%) scale(1)} }
+
+/* MISC */
+.spinner { width:14px; height:14px; border:2px solid rgba(232,255,71,0.2); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes blink { 50%{opacity:0} }
+.fade-enter-active,.fade-leave-active { transition:opacity 0.2s; }
+.fade-enter-from,.fade-leave-to { opacity:0; }
+.empty-msg { text-align:center; padding:28px; font-size:12px; letter-spacing:0.1em; color:var(--text-dim); text-transform:uppercase; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-wrap">
+      <div class="logo">track.</div>
+      <div class="logo-sub">{{t('tagline')}}</div>
+    </div>
+    <div class="header-actions">
+      <select class="lang-select" v-model="lang" :title="t('language')">
+        <option v-for="l in langs" :key="l.code" :value="l.code">{{l.flag}} {{l.label}}</option>
+      </select>
+      <button class="hbtn" @click="openDrawer('songs')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        {{t('songs')}}
+      </button>
+      <button class="hbtn accent" @click="openDrawer('export')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        {{t('export')}}
+      </button>
+    </div>
+  </div>
+
+  <!-- Title bar -->
+  <div class="title-bar">
+    <input class="song-title-input" v-model="song.title" :placeholder="t('untitledSong')" @input="persist" />
+    <span class="meta-chip">{{totalLines}} {{t('lines')}}</span>
+    <span class="meta-chip gold" v-if="song.sections.length">{{song.sections.length}} {{t('parts')}}</span>
+  </div>
+
+  <!-- Section tabs -->
+  <div class="section-tabs">
+    <button
+      v-for="(sec,i) in song.sections" :key="sec.id"
+      class="tab-btn" :class="{active:activeSection===i}"
+      :style="{'--section-color':sec.color}"
+      @click="activeSection=i">
+      <span class="tab-dot"></span>
+      {{tSection(sec.typeKey)}}
+      <span v-if="i===activeSection" style="font-size:7px;opacity:0.5">{{i+1}}</span>
+    </button>
+    <button class="add-section-btn" @click="openDrawer('addsection')">+</button>
+  </div>
+
+  <!-- Editor -->
+  <div class="editor-area" ref="editorAreaRef">
+    <div v-if="currentSection">
+      <div class="section-header" :style="{'--section-color':currentSection.color}">
+        <span class="section-label">{{tSection(currentSection.typeKey)}}</span>
+        <span class="section-line-count">{{sectionLineCount}} {{t('lines')}}</span>
+        <span style="flex:1"></span>
+        <button class="hbtn" style="height:26px;font-size:7px;padding:0 9px;" @click="deleteSection" v-if="song.sections.length>1">{{t('remove')}}</button>
+      </div>
+
+      <textarea
+        class="lyric-editor"
+        v-model="currentSection.content"
+        :placeholder="sectionPlaceholder"
+        ref="lyricsRef"
+        @input="onLyricEdit"
+        @mouseup="onTextareaSelect"
+        @touchend="onTextareaSelect"
+        @keyup="onTextareaSelect"
+        @blur="dismissPopover"
+        rows="1"
+      ></textarea>
+
+      <!-- Selection rhyme popover -->
+      <teleport to="body">
+        <transition name="fade">
+          <button
+            v-if="selectionPopover"
+            class="selection-popover"
+            :style="{left:popoverX+'px',top:popoverY+'px'}"
+            @mousedown.prevent="rhymeFromSelection"
+            @touchstart.prevent="rhymeFromSelection"
+          >⌁ {{t('rhymesFor')}} "{{selectionWord}}"</button>
+        </transition>
+      </teleport>
+
+      <!-- AI card -->
+      <transition name="fade">
+        <div v-if="aiText||loading" class="ai-card">
+          <div class="ai-card-header">
+            <div class="ai-card-label">{{t('aiSuggestion')}}</div>
+            <button v-if="!loading" class="ai-act-btn" style="padding:3px 8px;font-size:7px;" @click="aiText=''">✕</button>
+          </div>
+          <div class="ai-card-body" :class="{thinking:loading&&!aiText}">{{aiText}}</div>
+          <div v-if="aiText&&!loading" class="ai-card-actions">
+            <button class="ai-act-btn primary" @click="appendLyrics">↓ {{t('addToSection')}}</button>
+            <button class="ai-act-btn primary" @click="replaceSection">↺ {{t('replaceSection')}}</button>
+            <button class="ai-act-btn" @click="aiText=''">✕ {{t('dismiss')}}</button>
+          </div>
+        </div>
+      </transition>
+
+      <!-- Rhyme panel -->
+      <transition name="fade">
+        <div v-if="rhymes.length" class="rhyme-panel">
+          <div class="rhyme-header">
+            <span>{{t('rhymesFor')}} "{{rhymeWord}}"</span>
+            <button style="background:none;border:none;color:var(--text-dim);font-size:10px;cursor:pointer;" @click="rhymes=[]">✕</button>
+          </div>
+          <div class="rhyme-grid">
+            <div v-for="w in rhymes" :key="w" class="rhyme-word" @click="insertRhyme(w)">{{w}}</div>
+          </div>
+        </div>
+      </transition>
+    </div>
+    <div v-else class="empty-msg">{{t('noSections')}}</div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="prompt-row">
+      <input class="prompt-input" v-model="userPrompt" :placeholder="t('promptPlaceholder')" @keyup.enter="sendToAI" type="text" inputmode="text" />
+      <button class="send-btn" @click="sendToAI" :disabled="loading">
+        <div v-if="loading" class="spinner"></div>
+        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+    <div class="quick-row">
+      <button class="quick-btn" @click="quick(t('q_nextLines'))">+ {{t('nextLines')}}</button>
+      <button class="quick-btn" @click="quick(t('q_intensify'))">✦ {{t('intensify')}}</button>
+      <button class="quick-btn" @click="quick(t('q_rephrase'))">⟳ {{t('rephrase')}}</button>
+      <button class="quick-btn" @click="quick(t('q_hook'))">◈ {{t('addHook')}}</button>
+      <button class="quick-btn rhyme-btn" @click="openRhymeFinder">⌁ {{t('rhymes')}}</button>
+      <button class="quick-btn" @click="quick(t('q_imagery'))">~ {{t('imagery')}}</button>
+    </div>
+  </div>
+
+  <!-- Drawer overlay -->
+  <transition name="fade">
+    <div v-if="drawer" class="drawer-overlay" @click="drawer=null"></div>
+  </transition>
+
+  <!-- Drawer -->
+  <transition name="fade">
+    <div v-if="drawer" class="drawer">
+      <div class="drawer-pill"></div>
+      <div class="drawer-head">
+        <div class="drawer-head-title">
+          {{drawer==='songs'?t('yourSongs'):drawer==='export'?t('export'):drawer==='addsection'?t('addSection'):t('findRhymes')}}
+        </div>
+        <button class="drawer-x" @click="drawer=null">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="drawer-body">
+
+        <!-- SONGS -->
+        <div v-if="drawer==='songs'" class="song-list">
+          <div v-for="(s,i) in songs" :key="s.id" class="song-item" :class="{current:i===songIndex}" @click="switchSong(i)">
+            <div class="song-item-title">{{s.title||t('untitledSong')}}</div>
+            <div class="song-item-meta">
+              <span>{{s.sections.length}} {{t('sections')}}</span>
+              <span>{{totalLinesOf(s)}} {{t('lines')}}</span>
+              <span>{{fmtDate(s.updatedAt)}}</span>
+            </div>
+            <button class="song-item-del" v-if="songs.length>1" @click.stop="deleteSong(i)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            </button>
+          </div>
+          <button class="new-song-btn" @click="newSong">+ {{t('newSong')}}</button>
+        </div>
+
+        <!-- ADD SECTION -->
+        <div v-if="drawer==='addsection'" class="section-picker">
+          <button v-for="st in sectionTypes" :key="st.key" class="section-pick-btn" @click="addSection(st)">
+            <span class="spb-dot" :style="{background:st.color}"></span>
+            <div>
+              <div class="spb-name">{{tSection(st.key)}}</div>
+              <div class="spb-hint">{{tSectionHint(st.key)}}</div>
+            </div>
+          </button>
+        </div>
+
+        <!-- RHYME FINDER -->
+        <div v-if="drawer==='rhymefinder'">
+          <div style="display:flex;gap:8px;margin-bottom:14px;">
+            <input ref="rhymeInputRef" v-model="rhymeQuery" :placeholder="t('typeAWord')"
+              style="flex:1;background:var(--bg2);border:1px solid var(--border-bright);border-radius:8px;padding:10px 14px;font-family:var(--font-mono);font-size:14px;color:var(--text);outline:none;-webkit-appearance:none;"
+              @keyup.enter="fetchRhymes" />
+            <button class="send-btn" @click="fetchRhymes" :disabled="rhymeLoading" style="width:42px;height:42px;border-radius:8px;">
+              <div v-if="rhymeLoading" class="spinner"></div>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+          </div>
+          <div v-if="drawerRhymes.length" class="rhyme-grid" style="border-radius:8px;overflow:hidden;border:1px solid var(--border);">
+            <div v-for="w in drawerRhymes" :key="w" class="rhyme-word" @click="insertRhymeFromDrawer(w)">{{w}}</div>
+          </div>
+          <div v-else-if="!rhymeLoading" class="empty-msg">{{t('enterWordForRhymes')}}</div>
+        </div>
+
+        <!-- EXPORT -->
+        <div v-if="drawer==='export'">
+          <div v-if="exportOk" class="export-ok">{{exportOk}}</div>
+          <div v-else class="export-list">
+            <button class="export-item" @click="doCopy">
+              <div class="export-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
+              <div><div class="export-title">{{t('copyLyrics')}}</div><div class="export-desc">{{t('copyLyricsDesc')}}</div></div>
+            </button>
+            <button class="export-item" @click="doTxt">
+              <div class="export-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+              <div><div class="export-title">{{t('downloadTxt')}}</div><div class="export-desc">{{t('downloadTxtDesc')}}</div></div>
+            </button>
+            <button class="export-item" @click="doAllSongs">
+              <div class="export-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+              <div><div class="export-title">{{t('exportAll')}}</div><div class="export-desc">{{songs.length}} {{t('songs')}} {{t('asOneFile')}}</div></div>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </transition>
+
+</div>
+<script>
+const { createApp, ref, computed, watch, nextTick } = Vue;
+const STORE = 'track_v2';
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const stamp = () => new Date().toISOString();
+
+// ── TRANSLATIONS ──────────────────────────────────────────────────────────────
+const LANGS = {
+  en: {
+    flag:'🇬🇧', label:'English',
+    tagline:'AI Songwriting', language:'Language',
+    songs:'Songs', export:'Export', lines:'lines', parts:'parts', sections:'sections',
+    untitledSong:'Untitled song…', remove:'Remove', noSections:'No sections — tap + to add a part',
+    aiSuggestion:'AI Suggestion', addToSection:'Add to section', replaceSection:'Replace section', dismiss:'Dismiss',
+    rhymesFor:'Rhymes for', rhymes:'Rhymes', findRhymes:'Find Rhymes', typeAWord:'Type a word…', enterWordForRhymes:'Enter a word to find rhymes',
+    promptPlaceholder:"Ask AI… 'write a melancholic chorus'",
+    nextLines:'Next lines', intensify:'Intensify', rephrase:'Rephrase', addHook:'Add hook', imagery:'Imagery',
+    yourSongs:'Your Songs', newSong:'New Song', addSection:'Add Section',
+    copyLyrics:'Copy lyrics', copyLyricsDesc:'Full song to clipboard',
+    downloadTxt:'Download .txt', downloadTxtDesc:'With section labels',
+    exportAll:'Export all songs', asOneFile:'as one file',
+    copied:'✓ Copied!', downloaded:'✓ Downloaded!',
+    q_nextLines:'Write the next lines for this section, continuing the mood and flow.',
+    q_intensify:'Rewrite these lyrics to be more emotionally powerful and evocative.',
+    q_rephrase:'Suggest alternative phrasing for these lyrics that hits harder.',
+    q_hook:'Add a hook — a memorable, catchy phrase that anchors this section.',
+    q_imagery:'Make the imagery in these lyrics more vivid and specific.',
+    aiSystem:'You are an elite songwriting collaborator. Write lyrics that feel authentic, emotionally resonant, and singable. Respond ONLY with lyric lines — no commentary, no labels. Match the voice and feel of what\'s already written.',
+    rhymeSystem:'You are a rhyme dictionary. Given a word, respond with ONLY a JSON array of 12-18 rhyming words (perfect and near rhymes). No explanation, no markdown, just the raw JSON array.',
+    sections_name:{ verse:'Verse', chorus:'Chorus', prechorus:'Pre-Chorus', bridge:'Bridge', outro:'Outro', intro:'Intro', hook:'Hook' },
+    sections_hint:{ verse:'Tells the story', chorus:'The emotional hook', prechorus:'Builds into the chorus', bridge:'Contrast and shift', outro:'Close the song', intro:'Set the scene', hook:"The line they can't shake" },
+  },
+  no: {
+    flag:'🇳🇴', label:'Norsk',
+    tagline:'AI Låtskriving', language:'Språk',
+    songs:'Sanger', export:'Eksporter', lines:'linjer', parts:'deler', sections:'seksjoner',
+    untitledSong:'Uten tittel…', remove:'Fjern', noSections:'Ingen seksjoner — trykk + for å legge til',
+    aiSuggestion:'AI-forslag', addToSection:'Legg til seksjon', replaceSection:'Erstatt seksjon', dismiss:'Avvis',
+    rhymesFor:'Rim for', rhymes:'Rim', findRhymes:'Finn rim', typeAWord:'Skriv et ord…', enterWordForRhymes:'Skriv et ord for å finne rim',
+    promptPlaceholder:"Spør AI… 'skriv et vemodig refreng'",
+    nextLines:'Neste linjer', intensify:'Intensiver', rephrase:'Omformuler', addHook:'Legg til hook', imagery:'Billedspråk',
+    yourSongs:'Dine sanger', newSong:'Ny sang', addSection:'Legg til seksjon',
+    copyLyrics:'Kopier tekst', copyLyricsDesc:'Hele sangen til utklippstavlen',
+    downloadTxt:'Last ned .txt', downloadTxtDesc:'Med seksjonsetiketter',
+    exportAll:'Eksporter alle sanger', asOneFile:'som én fil',
+    copied:'✓ Kopiert!', downloaded:'✓ Lastet ned!',
+    q_nextLines:'Skriv de neste linjene for denne seksjonen, og fortsett stemningen og flyten.',
+    q_intensify:'Omskriv disse lyrikkene for å gjøre dem mer følelsesmessig kraftfulle.',
+    q_rephrase:'Foreslå alternativ formulering for disse lyrikkene som treffer hardere.',
+    q_hook:'Legg til en hook — en minneverdig, fengende frase som forankrer denne seksjonen.',
+    q_imagery:'Gjør billedspråket i disse lyrikkene mer levende og spesifikt.',
+    aiSystem:'Du er en fremragende låtskrivingsmedarbeider. Skriv tekster på norsk som føles autentiske, følelsesmessig resonante og syngeriske. Svar KUN med lyrikklinjer — ingen kommentarer, ingen etiketter. Match stemmen og følelsen av det som allerede er skrevet.',
+    rhymeSystem:'Du er en rimordbok for norsk. Gitt et ord, svar med KUN en JSON-array med 12-18 rimord (perfekte og nærrim) på norsk. Ingen forklaring, ingen markdown, bare rå JSON-array.',
+    sections_name:{ verse:'Vers', chorus:'Refreng', prechorus:'Pre-refreng', bridge:'Bro', outro:'Outro', intro:'Intro', hook:'Hook' },
+    sections_hint:{ verse:'Forteller historien', chorus:'Den følelsesmessige hooken', prechorus:'Bygger opp til refreng', bridge:'Kontrast og skifte', outro:'Avslutt sangen', intro:'Sett scenen', hook:'Linjen de ikke glemmer' },
+  },
+  de: {
+    flag:'🇩🇪', label:'Deutsch',
+    tagline:'KI-Songwriting', language:'Sprache',
+    songs:'Songs', export:'Exportieren', lines:'Zeilen', parts:'Teile', sections:'Sektionen',
+    untitledSong:'Unbenannter Song…', remove:'Entfernen', noSections:'Keine Sektionen — + drücken um eine hinzuzufügen',
+    aiSuggestion:'KI-Vorschlag', addToSection:'Zur Sektion hinzufügen', replaceSection:'Sektion ersetzen', dismiss:'Verwerfen',
+    rhymesFor:'Reime für', rhymes:'Reime', findRhymes:'Reime finden', typeAWord:'Ein Wort eingeben…', enterWordForRhymes:'Wort eingeben um Reime zu finden',
+    promptPlaceholder:"KI fragen… 'Schreib einen melancholischen Refrain'",
+    nextLines:'Nächste Zeilen', intensify:'Intensivieren', rephrase:'Umformulieren', addHook:'Hook hinzufügen', imagery:'Bildsprache',
+    yourSongs:'Deine Songs', newSong:'Neuer Song', addSection:'Sektion hinzufügen',
+    copyLyrics:'Lyrics kopieren', copyLyricsDesc:'Ganzen Song in die Zwischenablage',
+    downloadTxt:'Als .txt laden', downloadTxtDesc:'Mit Sektionsbezeichnungen',
+    exportAll:'Alle Songs exportieren', asOneFile:'als eine Datei',
+    copied:'✓ Kopiert!', downloaded:'✓ Heruntergeladen!',
+    q_nextLines:'Schreib die nächsten Zeilen für diese Sektion, die Stimmung und den Fluss fortsetzend.',
+    q_intensify:'Schreib diese Lyrics um, damit sie emotional kraftvoller und ausdrucksstärker werden.',
+    q_rephrase:'Schlage alternative Formulierungen vor, die härter treffen.',
+    q_hook:'Füge einen Hook hinzu — eine einprägsame, catchy Phrase die diese Sektion verankert.',
+    q_imagery:'Mach die Bildsprache in diesen Lyrics lebendiger und spezifischer.',
+    aiSystem:'Du bist ein erstklassiger Songwriting-Kollaborateur. Schreibe Lyrics auf Deutsch, die sich authentisch, emotional resonant und singbar anfühlen. Antworte NUR mit Lyrикzeilen — kein Kommentar, keine Beschriftungen. Passe Stimme und Gefühl des bereits Geschriebenen an.',
+    rhymeSystem:'Du bist ein deutsches Reimwörterbuch. Antworte auf ein gegebenes Wort mit NUR einem JSON-Array von 12-18 Reimwörtern auf Deutsch. Keine Erklärung, kein Markdown, nur das rohe JSON-Array.',
+    sections_name:{ verse:'Strophe', chorus:'Refrain', prechorus:'Pre-Refrain', bridge:'Bridge', outro:'Outro', intro:'Intro', hook:'Hook' },
+    sections_hint:{ verse:'Erzählt die Geschichte', chorus:'Der emotionale Hook', prechorus:'Baut zum Refrain auf', bridge:'Kontrast und Wechsel', outro:'Schließt den Song ab', intro:'Setzt die Szene', hook:'Die Zeile, die hängenbleibt' },
+  },
+  fr: {
+    flag:'🇫🇷', label:'Français',
+    tagline:'Écriture IA', language:'Langue',
+    songs:'Chansons', export:'Exporter', lines:'lignes', parts:'parties', sections:'sections',
+    untitledSong:'Chanson sans titre…', remove:'Supprimer', noSections:'Aucune section — appuyez sur + pour en ajouter',
+    aiSuggestion:'Suggestion IA', addToSection:'Ajouter à la section', replaceSection:'Remplacer la section', dismiss:'Ignorer',
+    rhymesFor:'Rimes pour', rhymes:'Rimes', findRhymes:'Trouver des rimes', typeAWord:'Tapez un mot…', enterWordForRhymes:'Entrez un mot pour trouver des rimes',
+    promptPlaceholder:"Demander à l'IA… 'écris un refrain mélancolique'",
+    nextLines:'Lignes suivantes', intensify:'Intensifier', rephrase:'Reformuler', addHook:'Ajouter un hook', imagery:'Images',
+    yourSongs:'Vos chansons', newSong:'Nouvelle chanson', addSection:'Ajouter une section',
+    copyLyrics:'Copier les paroles', copyLyricsDesc:'Chanson complète dans le presse-papiers',
+    downloadTxt:'Télécharger .txt', downloadTxtDesc:'Avec étiquettes de section',
+    exportAll:'Exporter toutes les chansons', asOneFile:'en un seul fichier',
+    copied:'✓ Copié!', downloaded:'✓ Téléchargé!',
+    q_nextLines:'Écris les prochaines lignes pour cette section, en continuant l\'humeur et le flux.',
+    q_intensify:'Réécris ces paroles pour les rendre plus puissantes émotionnellement.',
+    q_rephrase:'Suggère une formulation alternative pour ces paroles qui frappe plus fort.',
+    q_hook:'Ajoute un hook — une phrase mémorable et accrocheuse qui ancre cette section.',
+    q_imagery:'Rends les images dans ces paroles plus vives et spécifiques.',
+    aiSystem:"Tu es un collaborateur d'écriture de chansons d'élite. Écris des paroles en français qui semblent authentiques, résonnantes émotionnellement et chantables. Réponds UNIQUEMENT avec des lignes de paroles — pas de commentaires, pas d'étiquettes. Correspond à la voix et au sentiment de ce qui est déjà écrit.",
+    rhymeSystem:"Tu es un dictionnaire de rimes français. Étant donné un mot, réponds avec UNIQUEMENT un tableau JSON de 12-18 mots qui riment en français. Pas d'explication, pas de markdown, juste le tableau JSON brut.",
+    sections_name:{ verse:'Couplet', chorus:'Refrain', prechorus:'Pré-refrain', bridge:'Pont', outro:'Outro', intro:'Intro', hook:'Hook' },
+    sections_hint:{ verse:'Raconte l\'histoire', chorus:'Le hook émotionnel', prechorus:'Monte vers le refrain', bridge:'Contraste et changement', outro:'Ferme la chanson', intro:'Plante le décor', hook:'La ligne qu\'on ne peut oublier' },
+  },
+  es: {
+    flag:'🇪🇸', label:'Español',
+    tagline:'Composición IA', language:'Idioma',
+    songs:'Canciones', export:'Exportar', lines:'líneas', parts:'partes', sections:'secciones',
+    untitledSong:'Canción sin título…', remove:'Eliminar', noSections:'Sin secciones — pulsa + para agregar una parte',
+    aiSuggestion:'Sugerencia IA', addToSection:'Agregar a la sección', replaceSection:'Reemplazar sección', dismiss:'Descartar',
+    rhymesFor:'Rimas para', rhymes:'Rimas', findRhymes:'Buscar rimas', typeAWord:'Escribe una palabra…', enterWordForRhymes:'Escribe una palabra para encontrar rimas',
+    promptPlaceholder:"Pregunta a la IA… 'escribe un coro melancólico'",
+    nextLines:'Siguientes líneas', intensify:'Intensificar', rephrase:'Reformular', addHook:'Agregar gancho', imagery:'Imágenes',
+    yourSongs:'Tus canciones', newSong:'Nueva canción', addSection:'Agregar sección',
+    copyLyrics:'Copiar letra', copyLyricsDesc:'Canción completa al portapapeles',
+    downloadTxt:'Descargar .txt', downloadTxtDesc:'Con etiquetas de sección',
+    exportAll:'Exportar todas las canciones', asOneFile:'como un archivo',
+    copied:'✓ ¡Copiado!', downloaded:'✓ ¡Descargado!',
+    q_nextLines:'Escribe las siguientes líneas para esta sección, continuando el estado de ánimo y el flujo.',
+    q_intensify:'Reescribe estas letras para que sean más poderosas emocionalmente.',
+    q_rephrase:'Sugiere una formulación alternativa para estas letras que golpee más fuerte.',
+    q_hook:'Agrega un gancho — una frase memorable y pegadiza que ancle esta sección.',
+    q_imagery:'Haz las imágenes en estas letras más vívidas y específicas.',
+    aiSystem:'Eres un colaborador de composición de canciones de élite. Escribe letras en español que se sientan auténticas, emocionalmente resonantes y cantables. Responde SOLO con líneas de letras — sin comentarios, sin etiquetas. Coincide con la voz y el sentimiento de lo que ya está escrito.',
+    rhymeSystem:'Eres un diccionario de rimas en español. Dado una palabra, responde con SOLO un array JSON de 12-18 palabras que rimen en español. Sin explicación, sin markdown, solo el array JSON bruto.',
+    sections_name:{ verse:'Verso', chorus:'Coro', prechorus:'Pre-coro', bridge:'Puente', outro:'Outro', intro:'Intro', hook:'Gancho' },
+    sections_hint:{ verse:'Cuenta la historia', chorus:'El gancho emocional', prechorus:'Construye hacia el coro', bridge:'Contraste y cambio', outro:'Cierra la canción', intro:'Establece la escena', hook:'La línea que no se puede olvidar' },
+  },
+};
+
+const SECTION_TYPES = [
+  { key:'verse',     color:'#e8ff47' },
+  { key:'chorus',    color:'#ff6b6b' },
+  { key:'prechorus', color:'#ffb347' },
+  { key:'bridge',    color:'#47c8ff' },
+  { key:'outro',     color:'#b47fff' },
+  { key:'intro',     color:'#aaffaa' },
+  { key:'hook',      color:'#ff47aa' },
+];
+
+function mkSection(key='verse') {
+  const st = SECTION_TYPES.find(x=>x.key===key)||SECTION_TYPES[0];
+  return { id:uid(), typeKey:st.key, color:st.color, content:'' };
+}
+function mkSong() {
+  return { id:uid(), title:'', sections:[mkSection('verse'),mkSection('chorus')], createdAt:stamp(), updatedAt:stamp() };
+}
+function load() { try { const r=localStorage.getItem(STORE); if(r) return JSON.parse(r); } catch(e){} return [mkSong()]; }
+function save(d) { try { localStorage.setItem(STORE,JSON.stringify(d)); } catch(e){} }
+
+createApp({
+  setup() {
+    const songs = ref(load());
+    const songIndex = ref(0);
+    const activeSection = ref(0);
+    const lang = ref(localStorage.getItem('track_lang')||'en');
+    const userPrompt = ref('');
+    const aiText = ref('');
+    const loading = ref(false);
+    const drawer = ref(null);
+    const exportOk = ref('');
+    const rhymes = ref([]);
+    const rhymeWord = ref('');
+    const rhymeQuery = ref('');
+    const rhymeLoading = ref(false);
+    const drawerRhymes = ref([]);
+    const selectionWord = ref('');
+    const selectionPopover = ref(false);
+    const popoverX = ref(0);
+    const popoverY = ref(0);
+    const lyricsRef = ref(null);
+    const editorAreaRef = ref(null);
+    const rhymeInputRef = ref(null);
+
+    const langs = Object.entries(LANGS).map(([code,v])=>({code,flag:v.flag,label:v.label}));
+    const sectionTypes = SECTION_TYPES;
+
+    // Translation helpers
+    function t(key) { return LANGS[lang.value]?.[key] ?? LANGS.en[key] ?? key; }
+    function tSection(key) { return LANGS[lang.value]?.sections_name?.[key] ?? LANGS.en.sections_name[key] ?? key; }
+    function tSectionHint(key) { return LANGS[lang.value]?.sections_hint?.[key] ?? LANGS.en.sections_hint[key] ?? key; }
+
+    watch(lang, v => localStorage.setItem('track_lang', v));
+
+    const song = computed(() => songs.value[songIndex.value]||songs.value[0]);
+    const currentSection = computed(() => song.value.sections[activeSection.value]);
+    const totalLines = computed(() => totalLinesOf(song.value));
+
+    function totalLinesOf(s) {
+      return s.sections.reduce((n,sec)=>n+sec.content.split('\n').filter(l=>l.trim()).length, 0);
+    }
+
+    const sectionLineCount = computed(() => {
+      if(!currentSection.value) return 0;
+      return currentSection.value.content.split('\n').filter(l=>l.trim()).length;
+    });
+
+    const sectionPlaceholder = computed(() => {
+      if(!currentSection.value) return '';
+      const key = currentSection.value.typeKey;
+      const ph = {
+        verse:  { en:"Start your story here…\nEvery line a brushstroke…", no:"Begynn historien din her…\nHver linje et penselstrøk…", de:"Beginne deine Geschichte hier…\nJede Zeile ein Pinselstrich…", fr:"Commence ton histoire ici…\nChaque ligne un coup de pinceau…", es:"Comienza tu historia aquí…\nCada línea un pincelada…" },
+        chorus: { en:"The big feeling goes here…\nMake it unforgettable…", no:"Den store følelsen hører hjemme her…\nGjør den uforglemmelig…", de:"Das große Gefühl gehört hierher…\nMach es unvergesslich…", fr:"Le grand sentiment va ici…\nRends-le inoubliable…", es:"El gran sentimiento va aquí…\nHazlo inolvidable…" },
+        prechorus:{ en:"Build the tension…\nLead them in…", no:"Bygg spenning…\nLed dem inn…", de:"Aufbauende Spannung…\nFühre sie hinein…", fr:"Construis la tension…\nAmène-les…", es:"Construye la tensión…\nLlévalos…" },
+        bridge: { en:"Shift the perspective…\nSomething unexpected…", no:"Skift perspektivet…\nNoe uventet…", de:"Die Perspektive wechseln…\nEtwas Unerwartetes…", fr:"Change la perspective…\nQuelque chose d'inattendu…", es:"Cambia la perspectiva…\nAlgo inesperado…" },
+        intro:  { en:"Set the world before the words…", no:"Sett scenen før ordene…", de:"Die Welt vor den Worten setzen…", fr:"Plante le monde avant les mots…", es:"Establece el mundo antes de las palabras…" },
+        outro:  { en:"Let it fade or let it land…", no:"La det falme eller la det lande…", de:"Lass es verblassen oder ankommen…", fr:"Laisse-le s'estomper ou atterrir…", es:"Deja que se desvanezca o aterrice…" },
+        hook:   { en:"The line they can't shake…", no:"Linjen de ikke kan glemme…", de:"Die Zeile, die hängenbleibt…", fr:"La ligne qu'on ne peut oublier…", es:"La línea que no pueden olvidar…" },
+      };
+      return ph[key]?.[lang.value] ?? ph[key]?.en ?? '';
+    });
+
+    function persist() { song.value.updatedAt=stamp(); save(songs.value); }
+    function onLyricEdit() { autoResize(); persist(); }
+
+    function autoResize() {
+      const el=lyricsRef.value; if(!el) return;
+      el.style.height='auto'; el.style.height=el.scrollHeight+'px';
+    }
+
+    function onTextareaSelect(e) {
+      const el=lyricsRef.value; if(!el) return;
+      const start=el.selectionStart, end=el.selectionEnd;
+      if(start===end) { selectionPopover.value=false; selectionWord.value=''; return; }
+      const selected=el.value.substring(start,end).trim().replace(/[^a-zA-ZÀ-ÿÆæØøÅå]/g,'');
+      if(!selected||selected.includes(' ')||selected.length<2) { selectionPopover.value=false; selectionWord.value=''; return; }
+      selectionWord.value=selected;
+      const text=el.value.substring(0,start);
+      const lines=text.split('\n');
+      const lineNum=lines.length-1;
+      const col=lines[lineNum].length;
+      const elRect=el.getBoundingClientRect();
+      const rawY=elRect.top+16+lineNum*28-38;
+      const rawX=elRect.left+18+col*9;
+      popoverX.value=Math.min(rawX,window.innerWidth-150);
+      popoverY.value=Math.max(rawY,elRect.top+4);
+      selectionPopover.value=true;
+    }
+
+    function dismissPopover() { setTimeout(()=>{ selectionPopover.value=false; },180); }
+
+    async function rhymeFromSelection() {
+      const word=selectionWord.value;
+      selectionPopover.value=false;
+      if(!word) return;
+      rhymeWord.value=word;
+      rhymes.value=['…'];
+      await fetchRhymesFor(word,false);
+    }
+
+    function fmtDate(iso) {
+      if(!iso) return '';
+      const d=new Date(iso),now=new Date(),diff=(now-d)/1000;
+      if(diff<60) return diff<5?'now':Math.floor(diff)+'s';
+      if(diff<3600) return Math.floor(diff/60)+'m';
+      if(diff<86400) return Math.floor(diff/3600)+'h';
+      return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    }
+
+    async function sendToAI(custom) {
+      const instr=typeof custom==='string'?custom:userPrompt.value.trim();
+      if(!instr) return;
+      loading.value=true; aiText.value='';
+      const sec=currentSection.value;
+      const allLyrics=song.value.sections.map(s=>`[${tSection(s.typeKey)}]\n${s.content||'(empty)'}`).join('\n\n');
+      const sys=t('aiSystem')+` The user is writing a ${tSection(sec?.typeKey||'verse')} section.`;
+      const msg=`Full song so far:\n${allLyrics}\n\n---\n\nCurrent section (${tSection(sec?.typeKey)}):\n${sec?.content||'(empty)'}\n\n---\n\nTask: ${instr}`;
+      try {
+        const res=await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[{role:'user',content:msg}]})
+        });
+        const data=await res.json();
+        aiText.value=data.error?'⚠ '+(data.error.message||'Error'):data.content?.[0]?.text||'';
+      } catch(e) { aiText.value='⚠ '+t('promptPlaceholder'); }
+      finally {
+        loading.value=false; userPrompt.value='';
+        setTimeout(()=>editorAreaRef.value?.scrollTo({top:editorAreaRef.value.scrollHeight,behavior:'smooth'}),100);
+      }
+    }
+
+    function quick(p) { sendToAI(p); }
+
+    function appendLyrics() {
+      const ex=currentSection.value.content.trim();
+      currentSection.value.content=ex?ex+'\n'+aiText.value:aiText.value;
+      aiText.value=''; persist(); nextTick(autoResize);
+    }
+    function replaceSection() {
+      currentSection.value.content=aiText.value;
+      aiText.value=''; persist(); nextTick(autoResize);
+    }
+
+    async function openRhymeFinder() {
+      if(selectionWord.value) { await rhymeFromSelection(); return; }
+      const sec=currentSection.value;
+      if(!sec||!sec.content.trim()) { drawer.value='rhymefinder'; return; }
+      const lines=sec.content.trim().split('\n').filter(l=>l.trim());
+      const lastLine=lines[lines.length-1]||'';
+      const word=lastLine.trim().split(/\s+/).pop()?.replace(/[^a-zA-ZÀ-ÿÆæØøÅå]/g,'')||'';
+      if(!word) { drawer.value='rhymefinder'; return; }
+      rhymeWord.value=word;
+      await fetchRhymesFor(word,false);
+    }
+
+    async function fetchRhymes() {
+      const w=rhymeQuery.value.trim().split(/\s+/).pop()?.replace(/[^a-zA-ZÀ-ÿÆæØøÅå]/g,'');
+      if(!w) return;
+      rhymeWord.value=w; rhymeLoading.value=true;
+      await fetchRhymesFor(w,true);
+      rhymeLoading.value=false;
+    }
+
+    async function fetchRhymesFor(word,toDrawer) {
+      const sys=t('rhymeSystem');
+      try {
+        const res=await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:200,system:sys,messages:[{role:'user',content:`Word: ${word}`}]})
+        });
+        const data=await res.json();
+        const raw=data.content?.[0]?.text||'[]';
+        const arr=JSON.parse(raw.replace(/```json|```/g,'').trim());
+        if(toDrawer) drawerRhymes.value=arr;
+        else { rhymes.value=arr; drawer.value=null; }
+      } catch(e) {
+        if(toDrawer) drawerRhymes.value=[];
+        else rhymes.value=[];
+      }
+    }
+
+    function insertRhyme(w) {
+      if(!currentSection.value) return;
+      const c=currentSection.value.content;
+      currentSection.value.content=c+(c.endsWith('\n')||!c?'':'\n')+w;
+      rhymes.value=[]; persist(); nextTick(autoResize);
+    }
+    function insertRhymeFromDrawer(w) { insertRhyme(w); drawer.value=null; }
+
+    function addSection(st) {
+      song.value.sections.push({id:uid(),typeKey:st.key,color:st.color,content:''});
+      activeSection.value=song.value.sections.length-1;
+      drawer.value=null; persist(); nextTick(autoResize);
+    }
+    function deleteSection() {
+      if(song.value.sections.length<=1) return;
+      song.value.sections.splice(activeSection.value,1);
+      activeSection.value=Math.max(0,activeSection.value-1);
+      persist();
+    }
+
+    function newSong() {
+      songs.value.push(mkSong());
+      songIndex.value=songs.value.length-1;
+      activeSection.value=0;
+      aiText.value=''; rhymes.value=[]; drawer.value=null; persist(); nextTick(autoResize);
+    }
+    function switchSong(i) { songIndex.value=i; activeSection.value=0; aiText.value=''; rhymes.value=[]; drawer.value=null; nextTick(autoResize); }
+    function deleteSong(i) {
+      if(songs.value.length<=1) return;
+      songs.value.splice(i,1);
+      if(songIndex.value>=songs.value.length) songIndex.value=songs.value.length-1;
+      persist();
+    }
+
+    function openDrawer(type) { exportOk.value=''; drawerRhymes.value=[]; rhymeQuery.value=''; drawer.value=type; }
+
+    function buildSongText(s) {
+      let tx=(s.title||t('untitledSong').replace('…',''))+'\n'+'═'.repeat(Math.min((s.title||'Song').length,40))+'\n\n';
+      tx+=s.sections.map(sec=>`[${tSection(sec.typeKey)}]\n${sec.content||''}`).join('\n\n');
+      return tx;
+    }
+    function dl(text,name) {
+      const blob=new Blob([text],{type:'text/plain'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+    function flash(msg) { exportOk.value=msg; setTimeout(()=>exportOk.value='',2800); }
+    function doCopy() { navigator.clipboard.writeText(buildSongText(song.value)).then(()=>flash(t('copied'))).catch(()=>flash('⚠')); }
+    function doTxt() { const n=(song.value.title||'song').replace(/[^a-z0-9\s]/gi,'').trim().replace(/\s+/g,'-')||'song'; dl(buildSongText(song.value),n+'.txt'); flash(t('downloaded')); }
+    function doAllSongs() {
+      const text=songs.value.map((s,i)=>`${'═'.repeat(40)}\n${i+1}. ${s.title||t('untitledSong').replace('…','')}\n${'═'.repeat(40)}\n\n${buildSongText(s)}`).join('\n\n\n');
+      dl(text,'all-songs.txt'); flash(t('downloaded'));
+    }
+
+    watch(()=>song.value?.title, persist);
+    watch(activeSection,()=>nextTick(autoResize));
+
+    return {
+      songs,songIndex,song,activeSection,currentSection,sectionTypes,langs,lang,
+      userPrompt,aiText,loading,drawer,exportOk,
+      rhymes,rhymeWord,rhymeQuery,rhymeLoading,drawerRhymes,
+      selectionWord,selectionPopover,popoverX,popoverY,
+      lyricsRef,editorAreaRef,rhymeInputRef,
+      t,tSection,tSectionHint,
+      totalLines,totalLinesOf,sectionLineCount,sectionPlaceholder,
+      persist,onLyricEdit,onTextareaSelect,dismissPopover,rhymeFromSelection,fmtDate,
+      sendToAI,quick,appendLyrics,replaceSection,
+      openRhymeFinder,fetchRhymes,insertRhyme,insertRhymeFromDrawer,
+      addSection,deleteSection,newSong,switchSong,deleteSong,
+      openDrawer,doCopy,doTxt,doAllSongs,
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
